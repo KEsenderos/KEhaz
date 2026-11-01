@@ -1,13 +1,24 @@
 /* KEhaz customize.js　目的：カスタマイズタブ（設定の一覧表から入力欄を作る、範囲チェック、見本の表示、
    保存・取り消し・初期値に戻す、LINEの送信数とテスト送信、改善メモ、控え）。
    入力欄は、GASから届く設定の一覧表（defs）から作るので、設定を足してもこのファイルは直さなくてよい。
-   基づく仕様書：KEhaz_仕様書_v3.0 */
+   基づく仕様書：KEhaz_仕様書_v3.1.2 */
 
 const CZ = { defs: [], defMap: {}, values: {}, warnings: [], patch: {}, errors: {}, parts: [], pushUsage: null,
   changes: [], backups: [], memos: [], focusKey: 'msg_askFirst', loaded: false };
 
 // 今の値（変更中ならその値）
 function czVal(key) { return Object.prototype.hasOwnProperty.call(CZ.patch, key) ? CZ.patch[key] : CZ.values[key]; }
+// 今の見た目
+function czTheme() { return THEMES[czVal('theme')] ? czVal('theme') : DEFAULT_THEME; }
+// 色の実際の値（空欄なら見た目の色）。where：'app'（アプリ）／'line'（LINEのボタン）
+function czColor(key, where) {
+  const own = czVal(key);
+  if (own) return own;
+  const t = THEMES[czTheme()][where || 'app'];
+  return t[key.replace('color_', '')] || THEMES[czTheme()].app[key.replace('color_', '')];
+}
+// 変更中の値も含めて、見た目と色をアプリに当てはめる（その場で見え方を確かめるため）
+function czApplyLive() { applyColors(Object.assign({}, CZ.values, CZ.patch)); }
 function czDirtyCount() { return Object.keys(CZ.patch).length; }
 
 /* ---------- 範囲チェック（GASの validateSetting_ と同じ決まり） ---------- */
@@ -27,6 +38,7 @@ function czValidate(def, raw) {
       if (v === '' && def.allowEmpty) return '';
       return /^\d{4}-\d{2}-\d{2}$/.test(v) ? '' : '日付が正しくありません';
     case 'color':
+      if (v === '' && def.allowEmpty) return '';
       return /^#[0-9A-Fa-f]{6}$/.test(v) ? '' : '色は #1F6FEB の形で入れてください';
     case 'msg':
     case 'label': {
@@ -94,6 +106,7 @@ async function czSave() {
 // 変更を取り消す
 function czDiscard(silent) {
   CZ.patch = {}; CZ.errors = {};
+  if (CZ.loaded) applyColors(CZ.values);
   if (CZ.loaded && !silent) renderCustomize();
   czUpdateBar();
 }
@@ -107,6 +120,11 @@ function czSet(key, value) {
   if (err) CZ.errors[key] = err; else delete CZ.errors[key];
   czRefreshField(key);
   czUpdateBar();
+  if (def.group === 'color') {
+    czApplyLive();
+    // 見た目を変えたら、「見た目に合わせる」の色の欄も、その見た目の色にする
+    if (key === 'theme') ['color_accent', 'color_start', 'color_skip'].forEach((k) => { const i = $('in-' + k); if (i && i.disabled) i.value = czColor(k); });
+  }
   czRenderPreviews();
 }
 
@@ -183,7 +201,17 @@ function czField(def) {
   else if (def.type === 'hm') input = el('input', { type: 'time', 'data-key': key, value: v });
   else if (def.type === 'int') input = el('input', { type: 'number', 'data-key': key, value: v, min: def.min, max: def.max, step: 1, inputMode: 'numeric' });
   else if (def.type === 'date') input = el('input', { type: 'date', 'data-key': key, value: v });
-  else if (def.type === 'color') input = el('input', { type: 'color', 'data-key': key, value: v });
+  else if (def.type === 'color') {
+    // 「見た目に合わせる」＝空欄。チェックを外すと色を選べる
+    const follow = el('input', { type: 'checkbox', 'data-follow': key, checked: !v });
+    input = el('input', { type: 'color', 'data-key': key, id: 'in-' + key, value: czColor(key), disabled: !v });
+    return el('div', { class: 'cz-field', id: 'f-' + key }, [
+      el('label', { class: 'cz-label', text: def.label }),
+      el('div', { class: 'row' }, [input, el('label', { class: 'check' }, [follow, el('span', { text: '見た目に合わせる' })])]),
+      el('p', { class: 'cz-warn small', id: 'cw-' + key, hidden: true }),
+      el('p', { class: 'cz-err', id: 'err-' + key, hidden: true })
+    ]);
+  }
   else if (def.type === 'msg') input = el('textarea', { 'data-key': key, rows: 2, value: v });
   else if (def.type === 'label') input = el('input', { type: 'text', 'data-key': key, value: v });
   else if (def.type === 'list') {
@@ -316,8 +344,8 @@ function czFill(text, extra) {
 function czBubble(text, buttons) {
   return el('div', { class: 'lb' }, [el('p', { class: 'lb-text', text })].concat(buttons.length ? [el('div', { class: 'lb-btns' }, buttons.map((b) => {
     const e = el('span', { class: 'lb-btn lb-' + b.kind, text: b.label });
-    if (b.kind === 'start') e.style.background = czVal('color_start');
-    if (b.kind === 'skip') e.style.color = czVal('color_skip');
+    if (b.kind === 'start') { e.style.background = czColor('color_start', 'line'); e.style.color = textOn(czColor('color_start', 'line')); }
+    if (b.kind === 'skip') e.style.color = czColor('color_skip', 'line');
     return e;
   }))] : []));
 }
@@ -359,13 +387,7 @@ function czRenderPreviews() {
   });
   const pc = $('pv-color');
   if (pc) {
-    const app = el('div', { class: 'row' }, [
-      el('span', { class: 'pv-app', text: '主な色', style: `background:${czVal('color_accent')}` }),
-      el('span', { class: 'pv-app', text: '始める', style: `background:${czVal('color_start')}` }),
-      el('span', { class: 'pv-app pv-skip', text: 'やめる', style: `color:${czVal('color_skip')};border-color:${czVal('color_skip')}` })
-    ]);
-    pc.appendChild(el('p', { class: 'muted small', text: 'アプリのボタン' }));
-    pc.appendChild(app);
+    pc.appendChild(el('p', { class: 'muted small', text: '見た目を変えると、アプリ全体がその場で切り替わります（保存するまで確定しません）' }));
   }
 }
 
@@ -378,13 +400,17 @@ function contrastRatio(a, b) {
   const l1 = lum(a), l2 = lum(b);
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 }
-// 読みにくい色の組み合わせに注意を出す（保存はできる）
+// 読みにくい色の組み合わせに注意を出す（保存はできる）。決めた色だけを、背景（見た目の色）と比べる
 function czContrastWarn() {
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--card').trim();
+  const base = /^#[0-9A-Fa-f]{6}$/.test(bg) ? bg : '#FFFFFF';
   ['color_accent', 'color_start', 'color_skip'].forEach((k) => {
     const w = $('cw-' + k);
     const v = czVal(k);
-    if (!w || !/^#[0-9A-Fa-f]{6}$/.test(v || '')) return;
-    const r = contrastRatio(v, '#FFFFFF');
+    if (!w) return;
+    if (!/^#[0-9A-Fa-f]{6}$/.test(v || '')) { w.hidden = true; return; }
+    // 始めるの色は、LINEのボタンで白い文字が乗るので白と比べる
+    const r = k === 'color_skip' ? contrastRatio(v, base) : k === 'color_start' ? contrastRatio(v, '#FFFFFF') : Math.max(contrastRatio(v, '#FFFFFF'), contrastRatio(v, '#111111'));
     w.textContent = TXT.CONTRAST_WARN.replace('{r}', r.toFixed(1));
     w.hidden = r >= 4.5;
   });
@@ -499,6 +525,15 @@ function czOnInput(e) {
   if (t.dataset.key === 'part_memo' && e.type === 'change') renderCustomize();
 }
 
+// 「見た目に合わせる」のチェック
+function czOnFollow(e) {
+  const key = e.target.dataset.follow;
+  if (!key) return;
+  const input = $('in-' + key);
+  if (e.target.checked) { czSet(key, ''); input.disabled = true; input.value = czColor(key); }
+  else { input.disabled = false; czSet(key, input.value.toUpperCase()); }
+}
+
 // カスタマイズタブの準備（起動時に1回）
 function initCustomize() {
   $('set-conn-save').addEventListener('click', czSaveConn);
@@ -506,7 +541,7 @@ function initCustomize() {
   $('cz-cancel').addEventListener('click', () => czDiscard(false));
   const body = $('cz-body');
   body.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT' && e.target.type !== 'checkbox') czOnInput(e); });
-  body.addEventListener('change', czOnInput);
+  body.addEventListener('change', (e) => { if (e.target.dataset.follow) czOnFollow(e); else czOnInput(e); });
   body.addEventListener('focusin', (e) => {
     const k = e.target.dataset && e.target.dataset.key;
     if (k && CZ.defMap[k] && CZ.defMap[k].type === 'msg') { CZ.focusKey = k; czRenderPreviews(); }

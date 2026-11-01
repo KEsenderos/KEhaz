@@ -1,7 +1,16 @@
-/* KEhaz config.js　目的：アプリの定数と表示文言をまとめる。基づく仕様書：KEhaz_仕様書_v3.0 */
-const APP_VERSION = '3.0';
+/* KEhaz config.js　目的：アプリの定数と表示文言をまとめる。基づく仕様書：KEhaz_仕様書_v3.1.2 */
+const APP_VERSION = '3.1.2';
 const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
-const LS_KEYS = { GAS_URL: 'haz_gasUrl', PASS: 'haz_pass', LAST_TAB: 'haz_lastTab', OPEN_SECS: 'haz_openSecs' };
+const LS_KEYS = { GAS_URL: 'haz_gasUrl', PASS: 'haz_pass', LAST_TAB: 'haz_lastTab', OPEN_SECS: 'haz_openSecs', THEME: 'haz_theme' };
+
+// 見た目ごとの色（style.css の値と同じ。app：アプリの色、line：LINEのボタンの色、bar：iPhone上部の色）
+const THEMES = {
+  athlete: { app: { accent: '#C2410C', start: '#111111', skip: '#6B6B6B' }, line: { start: '#111111', skip: '#6B6B6B' }, bar: '#FAFAF7' },
+  night: { app: { accent: '#5B9BFF', start: '#2FC27A', skip: '#F2B33D' }, line: { start: '#1A7F37', skip: '#9A6700' }, bar: '#0D1321' },
+  glass: { app: { accent: '#4F46E5', start: '#0E7A55', skip: '#9A4A08' }, line: { start: '#0E7A55', skip: '#9A4A08' }, bar: '#A5C8FF' },
+  plain: { app: { accent: '#1F6FEB', start: '#1A7F37', skip: '#9A6700' }, line: { start: '#1A7F37', skip: '#9A6700' }, bar: '#1B4FA8' }
+};
+const DEFAULT_THEME = 'athlete';
 const MINUTES_CHOICES = [5, 10, 15, 30, 45, 60, 90, 120];
 const WARN_ITEM_COUNT = 5;   // これを超えたら「多すぎるかも」と警告
 const MAX_DAYS_AHEAD = 30;   // その日だけのやることを足せる先の日数

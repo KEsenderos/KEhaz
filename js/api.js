@@ -1,4 +1,4 @@
-/* KEhaz api.js　目的：GAS（Webアプリ）との通信。失敗の理由を分かる形で返す。基づく仕様書：KEhaz_仕様書_v3.0 */
+/* KEhaz api.js　目的：GAS（Webアプリ）との通信。失敗の理由を分かる形で返す。基づく仕様書：KEhaz_仕様書_v3.1.2 */
 
 // 通信の失敗を表すエラー（code・message・details を持つ）
 class ApiError extends Error {

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.0 -->
-<html lang="ja">
+<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.1.2 -->
+<html lang="ja" data-theme="athlete">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -12,6 +12,8 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/style.css">
+  <script>/* 前回の見た目を先に当てはめる（読み込みの間に色が変わって見えないように） */
+    try { document.documentElement.dataset.theme = localStorage.getItem('haz_theme') || 'athlete'; } catch (e) { document.documentElement.dataset.theme = 'athlete'; }</script>
 </head>
 <body>
   <button id="update-btn" type="button" hidden>新しい版があります。押すと更新します</button>

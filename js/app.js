@@ -1,5 +1,5 @@
 /* KEhaz app.js　目的：画面の表示と操作（4つのタブの切り替え、今日・決まったやること・記録、更新ボタン、起動）。
-   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.0 */
+   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.1.2 */
 
 const S = {
   tab: 'today', today: '', date: '', day: null, items: [], templates: [], values: {}, warnings: [], parts: {},
@@ -73,12 +73,24 @@ function fillMinutes(sel, current) {
   sel.value = String(current || 60);
 }
 
-// 設定の色をアプリの見た目に当てはめる
+// 背景色の上で読みやすい文字の色（白か黒）
+function textOn(hex) { return contrastRatio(hex, '#FFFFFF') >= contrastRatio(hex, '#111111') ? '#FFFFFF' : '#111111'; }
+
+// 見た目と、カスタマイズで決めた色を当てはめる（色が空欄なら、見た目の色のまま）
 function applyColors(values) {
-  const root = document.documentElement.style;
-  if (values.color_accent) root.setProperty('--accent', values.color_accent);
-  if (values.color_start) root.setProperty('--start', values.color_start);
-  if (values.color_skip) root.setProperty('--skip', values.color_skip);
+  const theme = THEMES[values.theme] ? values.theme : DEFAULT_THEME;
+  const html = document.documentElement;
+  html.dataset.theme = theme;
+  lsSet(LS_KEYS.THEME, theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEMES[theme].bar);
+  const set = (v, name, on) => {
+    if (v) { html.style.setProperty(name, v); if (on) html.style.setProperty(on, textOn(v)); }
+    else { html.style.removeProperty(name); if (on) html.style.removeProperty(on); }
+  };
+  set(values.color_accent, '--accent', '--on-accent');
+  set(values.color_start, '--start', '--on-start');
+  set(values.color_skip, '--skip', null);
 }
 
 // 2回押しで実行するボタン（1回目は文字を変えるだけ）
@@ -411,6 +423,7 @@ async function loadStats() {
 
 // 記録タブを描く
 function renderStats(d) {
+  if (d.look) applyColors(d.look);
   $('rec-streak-box').hidden = d.streak === null || d.streak === undefined;
   $('rec-streak').textContent = `${d.streak || 0}日続いています`;
   const items = $('rec-items');

@@ -1,7 +1,7 @@
 /* KEhaz sw.js　目的：アプリの画面をキャッシュし、電波が弱くても開けるようにする。
    新しい版は、更新ボタンが押されたときだけ切り替える（install で skipWaiting を呼ばない）。
-   基づく仕様書：KEhaz_仕様書_v3.0 */
-const CACHE_VERSION = 'kehaz-v3.0';
+   基づく仕様書：KEhaz_仕様書_v3.1.2 */
+const CACHE_VERSION = 'kehaz-v3.1.2';
 const CACHE_FILES = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
   './js/config.js', './js/api.js', './js/customize.js', './js/app.js',
