@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.0 -->
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1B4FA8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="KEhaz">
+  <title>KEhaz</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <button id="update-btn" type="button" hidden>新しい版があります。押すと更新します</button>
+
+  <div id="status-msg" hidden><span id="status-text"></span><button id="status-retry" type="button" hidden>もう一度</button></div>
+
+  <div id="leave-bar" hidden>
+    <p>保存していない変更があります</p>
+    <div class="row">
+      <button id="leave-save" type="button" class="primary">保存して移る</button>
+      <button id="leave-discard" type="button">捨てて移る</button>
+      <button id="leave-cancel" type="button">戻る</button>
+    </div>
+  </div>
+
+  <div id="cz-bar" hidden>
+    <span id="cz-bar-text"></span>
+    <button id="cz-save" type="button" class="primary">保存する</button>
+    <button id="cz-cancel" type="button">取り消す</button>
+  </div>
+
+  <main>
+    <!-- 今日 -->
+    <section id="panel-today" class="tab-panel">
+      <div class="day-nav">
+        <button id="day-prev" type="button" aria-label="前の日">◀</button>
+        <div id="day-label"></div>
+        <button id="day-next" type="button" aria-label="次の日">▶</button>
+        <input id="day-picker" type="date" aria-label="日付を選ぶ">
+      </div>
+      <p id="day-info" class="day-info" hidden></p>
+      <div id="day-notice" class="notice" hidden></div>
+      <div class="day-opts">
+        <label>開始 <input id="day-start-time" type="time"></label>
+        <label class="check"><input id="day-off" type="checkbox"> この日は送らない</label>
+      </div>
+      <ul id="item-list" class="cards"></ul>
+      <p id="day-summary" class="muted"></p>
+      <p id="day-warning" class="warn" hidden></p>
+      <button id="save-day" type="button" class="primary wide">保存する</button>
+
+      <div class="box">
+        <h3>＋ その日だけのやること</h3>
+        <div class="add-row">
+          <input id="add-title" type="text" maxlength="50" placeholder="名前">
+          <select id="add-minutes"></select>
+          <input id="add-fixed" type="time" aria-label="時刻指定（任意）">
+          <button id="add-btn" type="button">追加</button>
+        </div>
+        <p class="muted small">時刻指定は空欄なら順番どおり</p>
+        <p class="muted small">決まったやることから足す：</p>
+        <div id="template-chips" class="chips"></div>
+      </div>
+    </section>
+
+    <!-- 決まったやること -->
+    <section id="panel-template" class="tab-panel" hidden>
+      <p class="muted small">曜日ごとの開始時刻は「カスタマイズ」の「時刻」で変えます</p>
+      <button id="tpl-save" type="button" class="primary wide">保存する</button>
+      <ul id="tpl-list" class="cards"></ul>
+      <div class="box">
+        <h3>＋ 決まったやること</h3>
+        <div class="add-row">
+          <input id="tpl-add-title" type="text" maxlength="50" placeholder="名前">
+          <select id="tpl-add-minutes"></select>
+          <input id="tpl-add-fixed" type="time" aria-label="時刻指定（任意）">
+          <button id="tpl-add-btn" type="button">追加</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 記録 -->
+    <section id="panel-record" class="tab-panel" hidden>
+      <div class="box" id="rec-streak-box" hidden><h3>連続日数</h3><p id="rec-streak"></p></div>
+      <div class="box"><h3>やることごと（直近4週）</h3><table id="rec-items" class="tbl"></table></div>
+      <div class="box"><h3>日ごと（直近4週）</h3><table id="rec-days" class="tbl"></table></div>
+      <div class="box">
+        <h3>押し間違いを直す（直近7日）</h3>
+        <ul id="rec-recent" class="fix-list"></ul>
+      </div>
+      <div class="box"><h3>直近のエラー</h3><p id="rec-error" class="small"></p></div>
+    </section>
+
+    <!-- カスタマイズ -->
+    <section id="panel-customize" class="tab-panel" hidden>
+      <details class="cz-sec" id="cz-conn">
+        <summary>つなぎ先（この端末に保存）</summary>
+        <label class="block">GASのURL<input id="set-gas-url" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label>
+        <label class="block">合言葉<input id="set-pass" type="password" autocomplete="off"></label>
+        <button id="set-conn-save" type="button" class="primary">この端末に保存してつなぐ</button>
+      </details>
+      <div id="cz-warnings" class="notice" hidden></div>
+      <div id="cz-body"></div>
+      <p class="muted small">版：<span id="set-version"></span></p>
+    </section>
+  </main>
+
+  <nav id="tab-bar">
+    <button class="tab-btn" data-tab="today" type="button"><span aria-hidden="true">☑</span>今日</button>
+    <button class="tab-btn" data-tab="template" type="button"><span aria-hidden="true">🔁</span>決まったやること</button>
+    <button class="tab-btn" data-tab="record" type="button"><span aria-hidden="true">📊</span>記録</button>
+    <button class="tab-btn" data-tab="customize" type="button"><span aria-hidden="true">🛠</span>カスタマイズ</button>
+  </nav>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/customize.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
