@@ -1,5 +1,5 @@
 /* KEhaz app.js　目的：画面の表示と操作（4つのタブの切り替え、今日・決まったやること・記録、更新ボタン、起動）。
-   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.2 */
+   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.2.1 */
 
 const S = {
   tab: 'today', today: '', date: '', day: null, items: [], templates: [], values: {}, warnings: [], parts: {},
@@ -548,6 +548,11 @@ async function loadStats(force) {
 function renderStats(d) {
   if (d.look) applyColors(d.look);
   renderFresh('rec-fresh', CACHE.statsAt);
+  // GASに貼り忘れた部品のファイル（その部品は飛ばして動いている）
+  const miss = $('rec-missing');
+  miss.innerHTML = '';
+  (d.missingParts || []).forEach((m) => miss.appendChild(el('p', { class: 'warn', text: '⚠ ' + m })));
+  miss.hidden = !(d.missingParts || []).length;
   $('rec-streak-box').hidden = d.streak === null || d.streak === undefined;
   $('rec-streak').textContent = `${d.streak || 0}日続いています`;
   const items = $('rec-items');

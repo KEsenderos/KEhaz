@@ -1,5 +1,5 @@
-/* KEhaz config.js　目的：アプリの定数と表示文言をまとめる。基づく仕様書：KEhaz_仕様書_v3.2 */
-const APP_VERSION = '3.2';
+/* KEhaz config.js　目的：アプリの定数と表示文言をまとめる。基づく仕様書：KEhaz_仕様書_v3.2.1 */
+const APP_VERSION = '3.2.1';
 const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const LS_KEYS = { GAS_URL: 'haz_gasUrl', PASS: 'haz_pass', LAST_TAB: 'haz_lastTab', OPEN_SECS: 'haz_openSecs', THEME: 'haz_theme', CACHE: 'haz_cache' };
 const FRESH_MS = 5 * 60 * 1000;   // 読んでからこの時間以内なら、タブを切り替えても読み直さない

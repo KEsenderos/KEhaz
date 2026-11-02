@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.2 -->
+<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.2.1 -->
 <html lang="ja" data-theme="athlete">
 <head>
   <meta charset="utf-8">
@@ -90,6 +90,7 @@
 
     <!-- 記録 -->
     <section id="panel-record" class="tab-panel" hidden>
+      <div id="rec-missing" class="notice" hidden></div>
       <div class="fresh-row"><span id="rec-fresh" class="muted small"></span><button type="button" class="mini" data-refresh>↻ 更新</button></div>
       <div class="box" id="rec-streak-box" hidden><h3>連続日数</h3><p id="rec-streak"></p></div>
       <div class="box"><h3>やることごと（直近4週）</h3><table id="rec-items" class="tbl"></table></div>
