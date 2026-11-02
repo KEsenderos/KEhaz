@@ -1,7 +1,9 @@
-/* KEhaz config.js　目的：アプリの定数と表示文言をまとめる。基づく仕様書：KEhaz_仕様書_v3.1.2 */
-const APP_VERSION = '3.1.2';
+/* KEhaz config.js　目的：アプリの定数と表示文言をまとめる。基づく仕様書：KEhaz_仕様書_v3.2 */
+const APP_VERSION = '3.2';
 const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
-const LS_KEYS = { GAS_URL: 'haz_gasUrl', PASS: 'haz_pass', LAST_TAB: 'haz_lastTab', OPEN_SECS: 'haz_openSecs', THEME: 'haz_theme' };
+const LS_KEYS = { GAS_URL: 'haz_gasUrl', PASS: 'haz_pass', LAST_TAB: 'haz_lastTab', OPEN_SECS: 'haz_openSecs', THEME: 'haz_theme', CACHE: 'haz_cache' };
+const FRESH_MS = 5 * 60 * 1000;   // 読んでからこの時間以内なら、タブを切り替えても読み直さない
+const PULL_PX = 80;               // 画面のいちばん上で、これだけ下に引っぱると読み直す
 
 // 見た目ごとの色（style.css の値と同じ。app：アプリの色、line：LINEのボタンの色、bar：iPhone上部の色）
 const THEMES = {
@@ -50,6 +52,7 @@ const TXT = {
   CONN_SAVED: 'この端末に保存しました',
   NO_ERROR: 'なし',
   TODAY: '今日', TOMORROW: '明日',
+  SYNCING: '更新中…', FRESH: '{t} に読み込み', REFRESH: '↻ 更新',
   CZ_DIRTY: '保存していない変更 {n}件',
   CZ_HAS_ERROR: '赤字の所を直すと保存できます',
   CONFIRM_AGAIN: 'もう一度押すと実行します',

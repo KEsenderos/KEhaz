@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.1.2 -->
+<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.2 -->
 <html lang="ja" data-theme="athlete">
 <head>
   <meta charset="utf-8">
@@ -17,6 +17,8 @@
 </head>
 <body>
   <button id="update-btn" type="button" hidden>新しい版があります。押すと更新します</button>
+
+  <div id="sync-ind" hidden>更新中…</div>
 
   <div id="status-msg" hidden><span id="status-text"></span><button id="status-retry" type="button" hidden>もう一度</button></div>
 
@@ -44,6 +46,7 @@
         <button id="day-next" type="button" aria-label="次の日">▶</button>
         <input id="day-picker" type="date" aria-label="日付を選ぶ">
       </div>
+      <div class="fresh-row"><span id="day-fresh" class="muted small"></span><button type="button" class="mini" data-refresh>↻ 更新</button></div>
       <p id="day-info" class="day-info" hidden></p>
       <div id="day-notice" class="notice" hidden></div>
       <div class="day-opts">
@@ -71,7 +74,7 @@
 
     <!-- 決まったやること -->
     <section id="panel-template" class="tab-panel" hidden>
-      <p class="muted small">曜日ごとの開始時刻は「カスタマイズ」の「時刻」で変えます</p>
+      <div class="fresh-row"><span class="muted small">曜日ごとの開始時刻は「カスタマイズ」の「時刻」で変えます</span><button type="button" class="mini" data-refresh>↻ 更新</button></div>
       <button id="tpl-save" type="button" class="primary wide">保存する</button>
       <ul id="tpl-list" class="cards"></ul>
       <div class="box">
@@ -87,6 +90,7 @@
 
     <!-- 記録 -->
     <section id="panel-record" class="tab-panel" hidden>
+      <div class="fresh-row"><span id="rec-fresh" class="muted small"></span><button type="button" class="mini" data-refresh>↻ 更新</button></div>
       <div class="box" id="rec-streak-box" hidden><h3>連続日数</h3><p id="rec-streak"></p></div>
       <div class="box"><h3>やることごと（直近4週）</h3><table id="rec-items" class="tbl"></table></div>
       <div class="box"><h3>日ごと（直近4週）</h3><table id="rec-days" class="tbl"></table></div>
@@ -105,6 +109,7 @@
         <label class="block">合言葉<input id="set-pass" type="password" autocomplete="off"></label>
         <button id="set-conn-save" type="button" class="primary">この端末に保存してつなぐ</button>
       </details>
+      <div class="fresh-row"><span id="cz-fresh" class="muted small"></span><button type="button" class="mini" data-refresh>↻ 更新</button></div>
       <div id="cz-warnings" class="notice" hidden></div>
       <div id="cz-body"></div>
       <p class="muted small">版：<span id="set-version"></span></p>

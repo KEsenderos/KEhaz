@@ -1,5 +1,5 @@
 /* KEhaz app.js　目的：画面の表示と操作（4つのタブの切り替え、今日・決まったやること・記録、更新ボタン、起動）。
-   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.1.2 */
+   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.2 */
 
 const S = {
   tab: 'today', today: '', date: '', day: null, items: [], templates: [], values: {}, warnings: [], parts: {},
@@ -102,6 +102,67 @@ function confirmTwice(btn, fn) {
   btn._t = setTimeout(() => { btn.dataset.armed = ''; btn.textContent = btn.dataset.label; }, CONFIRM_MS);
 }
 
+/* ---------- 読み込みを減らす仕組み（前回の内容をすぐ出し、裏で読み直す） ---------- */
+
+// 読んだ内容の写し（端末に保存。版が変わったら使わない）
+const CACHE = { state: {}, stateAt: {}, stats: null, statsAt: 0, cz: null, czAt: 0 };
+// 端末に保存した写しを読む
+function cacheLoad() {
+  try {
+    const c = JSON.parse(lsGet(LS_KEYS.CACHE) || 'null');
+    if (c && c.v === APP_VERSION && c.url === lsGet(LS_KEYS.GAS_URL)) Object.assign(CACHE, c.data);
+  } catch (e) { /* 壊れていたら使わない */ }
+}
+// 写しを端末に保存する（日ごとの内容は、新しい3日分だけ残す）
+function cacheSave() {
+  const dates = Object.keys(CACHE.state).sort((a, b) => (CACHE.stateAt[b] || 0) - (CACHE.stateAt[a] || 0));
+  dates.slice(3).forEach((d) => { delete CACHE.state[d]; delete CACHE.stateAt[d]; });
+  lsSet(LS_KEYS.CACHE, JSON.stringify({ v: APP_VERSION, url: lsGet(LS_KEYS.GAS_URL), data: CACHE }));
+}
+// 写しを全部捨てる（つなぎ先を変えたとき）
+function cacheClear() {
+  CACHE.state = {}; CACHE.stateAt = {}; CACHE.stats = null; CACHE.statsAt = 0; CACHE.cz = null; CACHE.czAt = 0;
+  lsSet(LS_KEYS.CACHE, '');
+}
+// 読んでから FRESH_MS 以内か
+function isFresh(at) { return !!at && Date.now() - at < FRESH_MS; }
+// その日の写しを、保存・操作の返事で書き換える
+function cachePatchDay(date, patch) {
+  if (!CACHE.state[date]) return;
+  Object.assign(CACHE.state[date], patch);
+  CACHE.stateAt[date] = Date.now();
+  CACHE.statsAt = 0;          // 記録タブは次に開いたとき読み直す
+  cacheSave();
+}
+// 裏で読み込んでいる数と「更新中…」の表示
+let syncCount = 0;
+function syncStart() { syncCount++; $('sync-ind').hidden = false; }
+function syncEnd() { syncCount = Math.max(0, syncCount - 1); $('sync-ind').hidden = syncCount > 0 ? false : true; }
+// 「◯時◯分に読み込み」の表示
+function renderFresh(id, at) {
+  const e = $(id);
+  if (e) e.textContent = at ? TXT.FRESH.replace('{t}', isoHm(new Date(at).toISOString())) : '';
+}
+// 今のタブを読み直す（↻ と、引っぱったとき）
+function refreshCurrent() {
+  if (hasDirty()) { showStatus(TXT.SAVE_FIRST, true); return; }
+  if (S.tab === 'today') loadDay(S.date || localToday(), true);
+  else if (S.tab === 'template') loadTemplates(true);
+  else if (S.tab === 'record') loadStats(true);
+  else loadCustomize(true);
+}
+// 画面のいちばん上で下に引っぱったら読み直す
+function initPullToRefresh() {
+  let y0 = null;
+  document.addEventListener('touchstart', (e) => { y0 = window.scrollY <= 0 ? e.touches[0].clientY : null; }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (y0 === null) return;
+    const dy = e.changedTouches[0].clientY - y0;
+    y0 = null;
+    if (dy > PULL_PX) refreshCurrent();
+  }, { passive: true });
+}
+
 /* ---------- タブ ---------- */
 
 // タブを切り替える（保存していない変更があれば先に聞く）
@@ -140,19 +201,33 @@ function leaveDiscard() {
 
 /* ---------- 今日 ---------- */
 
-// その日の内容を読み込む
-async function loadDay(date) {
+// 読んだ内容（getState の返事）を画面に当てはめる
+function takeState(d) {
+  S.today = d.today; S.day = d.day; S.items = d.items.map((it) => Object.assign({}, it));
+  S.templates = d.templates; S.values = d.settings.values; S.warnings = d.settings.warnings; S.parts = d.parts;
+  S.state = d; S.dirty.day = false;
+  applyColors(S.values);
+  renderDay();
+  renderFresh('day-fresh', CACHE.stateAt[d.date]);
+}
+
+// その日の内容を読み込む。写しがあればすぐ出し、古ければ（または force なら）裏で読み直す
+async function loadDay(date, force) {
   S.date = date;
-  $('item-list').innerHTML = '';
-  $('day-label').textContent = TXT.LOADING;
+  const c = CACHE.state[date];
+  if (c) takeState(c);
+  else { $('item-list').innerHTML = ''; $('day-label').textContent = TXT.LOADING; }
+  if (c && !force && isFresh(CACHE.stateAt[date])) return;
+  syncStart();
   try {
     const d = await callApi('getState', { date });
-    S.today = d.today; S.day = d.day; S.items = d.items.map((it) => Object.assign({}, it));
-    S.templates = d.templates; S.values = d.settings.values; S.warnings = d.settings.warnings; S.parts = d.parts;
-    S.state = d; S.dirty.day = false;
-    applyColors(S.values);
-    renderDay();
-  } catch (e) { $('day-label').textContent = date; showError(e, () => loadDay(date)); }
+    CACHE.state[date] = d; CACHE.stateAt[date] = Date.now(); cacheSave();
+    // 読んでいる間に、別の日・別のタブへ移ったり、書き換えを始めたりしていたら、画面は変えない
+    if (S.tab === 'today' && S.date === date && !S.dirty.day) takeState(d);
+  } catch (e) {
+    if (!c) $('day-label').textContent = date;
+    showError(e, () => loadDay(date, true));
+  } finally { syncEnd(); }
 }
 
 // 別の日に移る（今日〜30日先）
@@ -268,6 +343,7 @@ function addItem() {
   S.items.push({ id: '', title, minutes: Number($('add-minutes').value), fixedTime: $('add-fixed').value || '', status: 'pending', templateId: '', bedOk: '0' });
   $('add-title').value = ''; $('add-fixed').value = '';
   markDayDirty();
+  queueSaveDay();             // 追加したらすぐ保存する
 }
 // 決まったやることを、その日だけのやることとして足す
 function addFromTemplate(tid) {
@@ -275,6 +351,14 @@ function addFromTemplate(tid) {
   if (!t) return;
   S.items.push({ id: '', title: t.title, minutes: Number(t.minutes), fixedTime: t.fixedTime || '', status: 'pending', templateId: '', bedOk: t.bedOk });
   markDayDirty();
+  queueSaveDay();             // 追加したらすぐ保存する
+}
+
+// 保存を順番に行う（続けて追加したときに、保存が重ならないように）
+let saveDayChain = Promise.resolve();
+function queueSaveDay() {
+  saveDayChain = saveDayChain.then(() => (S.dirty.day ? saveDay() : true));
+  return saveDayChain;
 }
 function markDayDirty() { S.dirty.day = true; renderDay(); }
 // その日の開始時刻・送るかどうかを、画面の値で書き換える
@@ -294,6 +378,7 @@ async function saveDay() {
       items: S.items.map((it) => ({ id: it.id || '', title: it.title, minutes: it.minutes, fixedTime: it.fixedTime || '', bedOk: it.bedOk || '0' }))
     });
     S.day = d.day; S.items = d.items; S.dirty.day = false;
+    cachePatchDay(S.date, { day: d.day, items: d.items });
     renderDay();
     showStatus(TXT.SAVED);
     return true;
@@ -302,28 +387,54 @@ async function saveDay() {
 }
 
 // 画面のボタン（始める・終わった・やめる・戻す）
+// 押したらすぐ画面を切り替え、送信は裏で行う。失敗したら元に戻して理由を出す
 async function doItemAction(id, op) {
   if (S.dirty.day) { showStatus(TXT.SAVE_FIRST, true); return; }
+  const prev = S.items.map((x) => Object.assign({}, x));
+  const it = S.items.find((x) => x.id === id);
+  if (it) {
+    const now = new Date().toISOString();
+    if (op === 'start') { it.status = 'doing'; it.startedAt = now; it.fiveStage = ''; }
+    else if (op === 'done') it.status = 'done';
+    else if (op === 'skip') it.status = 'skipped';
+    else if (op === 'restore') it.status = 'pending';
+    renderDay();
+  }
+  syncStart();
   try {
     const d = await callApi('itemAction', { itemId: id, op });
+    if (d.result === 'already' || d.result === 'invalid') showStatus(d.result === 'already' ? 'すでに終わっています（LINEで押した可能性があります）' : '今はその操作ができません', true);
     S.items = d.items;
-    renderDay();
-  } catch (e) { showError(e, () => doItemAction(id, op)); }
+    cachePatchDay(S.date, { items: d.items });
+    if (!S.dirty.day) renderDay();
+  } catch (e) {
+    S.items = prev; renderDay();
+    showError(e, () => doItemAction(id, op));
+  } finally { syncEnd(); }
 }
 
 /* ---------- 決まったやること ---------- */
 
-// 決まったやることを読み込む
-async function loadTemplates() {
-  $('tpl-list').innerHTML = '';
+// 決まったやることを読み込む（今日の内容の写しに入っている。古ければ裏で読み直す）
+function takeTemplates(d) {
+  S.today = d.today; S.templates = d.templates; S.values = d.settings.values;
+  applyColors(S.values);
+  S.tplItems = d.templates.map((t) => Object.assign({}, t));
+  S.dirty.tpl = false;
+  renderTemplates();
+}
+async function loadTemplates(force) {
+  const date = S.today || localToday();
+  const c = CACHE.state[date];
+  if (c) takeTemplates(c); else $('tpl-list').innerHTML = '';
+  if (c && !force && isFresh(CACHE.stateAt[date])) return;
+  syncStart();
   try {
-    const d = await callApi('getState', { date: S.today || localToday() });
-    S.today = d.today; S.templates = d.templates; S.values = d.settings.values;
-    applyColors(S.values);
-    S.tplItems = d.templates.map((t) => Object.assign({}, t));
-    S.dirty.tpl = false;
-    renderTemplates();
-  } catch (e) { showError(e, loadTemplates); }
+    const d = await callApi('getState', { date });
+    CACHE.state[date] = d; CACHE.stateAt[date] = Date.now(); cacheSave();
+    if (S.tab === 'template' && !S.dirty.tpl) takeTemplates(d);
+  } catch (e) { showError(e, () => loadTemplates(true)); }
+  finally { syncEnd(); }
 }
 
 // 「決まったやること」タブを描く
@@ -406,6 +517,11 @@ async function saveTemplates() {
     S.templates = d.templates;
     S.tplItems = d.templates.map((t) => Object.assign({}, t));
     S.dirty.tpl = false;
+    // 明日以降の日が作り直されるので、今日以外の写しは捨てる
+    const today = S.today || localToday();
+    Object.keys(CACHE.state).forEach((k) => { if (k !== today) { delete CACHE.state[k]; delete CACHE.stateAt[k]; } });
+    if (CACHE.state[today]) CACHE.state[today].templates = d.templates;
+    cacheSave();
     renderTemplates();
     showStatus(TXT.SAVED_TPL);
     return true;
@@ -415,15 +531,23 @@ async function saveTemplates() {
 
 /* ---------- 記録 ---------- */
 
-// 記録を読み込んで表にする
-async function loadStats() {
-  try { renderStats(await callApi('getStats', { weeks: 4 })); }
-  catch (e) { showError(e, loadStats); }
+// 記録を読み込んで表にする（写しがあればすぐ出し、古ければ裏で読み直す）
+async function loadStats(force) {
+  if (CACHE.stats) renderStats(CACHE.stats);
+  if (CACHE.stats && !force && isFresh(CACHE.statsAt)) return;
+  syncStart();
+  try {
+    const d = await callApi('getStats', { weeks: 4 });
+    CACHE.stats = d; CACHE.statsAt = Date.now(); cacheSave();
+    if (S.tab === 'record') renderStats(d);
+  } catch (e) { showError(e, () => loadStats(true)); }
+  finally { syncEnd(); }
 }
 
 // 記録タブを描く
 function renderStats(d) {
   if (d.look) applyColors(d.look);
+  renderFresh('rec-fresh', CACHE.statsAt);
   $('rec-streak-box').hidden = d.streak === null || d.streak === undefined;
   $('rec-streak').textContent = `${d.streak || 0}日続いています`;
   const items = $('rec-items');
@@ -451,8 +575,15 @@ function renderStats(d) {
 
 // 押し間違いを直す
 async function fixItem(id, status) {
-  try { renderStats(await callApi('fixItem', { itemId: id, status, weeks: 4 })); showStatus(TXT.SAVED); }
-  catch (e) { showError(e); loadStats(); }
+  syncStart();
+  try {
+    const d = await callApi('fixItem', { itemId: id, status, weeks: 4 });
+    CACHE.stats = d; CACHE.statsAt = Date.now();
+    Object.keys(CACHE.stateAt).forEach((k) => { CACHE.stateAt[k] = 0; });   // 今日タブは次に開いたとき読み直す
+    cacheSave();
+    renderStats(d); showStatus(TXT.SAVED);
+  } catch (e) { showError(e); loadStats(true); }
+  finally { syncEnd(); }
 }
 
 /* ---------- 更新ボタン（ルールブック3-12のとおり） ---------- */
@@ -567,6 +698,15 @@ function init() {
   $('rec-recent').addEventListener('change', (e) => { if (e.target.dataset.fix) fixItem(e.target.dataset.fix, e.target.value); });
 
   initCustomize();
+  cacheLoad();
+  initPullToRefresh();
+  document.querySelectorAll('[data-refresh]').forEach((b) => b.addEventListener('click', refreshCurrent));
+  // アプリに戻ってきたとき、今のタブの内容が古ければ裏で読み直す
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || hasDirty() || !lsGet(LS_KEYS.GAS_URL)) return;
+    if (S.tab === 'today') loadDay(S.date || localToday());
+    else if (S.tab === 'record') loadStats();
+  });
 
   S.date = localToday();
   const last = lsGet(LS_KEYS.LAST_TAB);

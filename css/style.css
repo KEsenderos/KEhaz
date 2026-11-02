@@ -1,4 +1,4 @@
-/* KEhaz 画面の見た目　基づく仕様書：KEhaz_仕様書_v3.1.2
+/* KEhaz 画面の見た目　基づく仕様書：KEhaz_仕様書_v3.2
    色・影などは変数（--◯◯）にまとめ、見た目（data-theme）ごとに変数を差し替える。
    カスタマイズの「主な色・始めるの色・やめるの色」を決めたときは、app.js が --accent・--start・--skip を上書きする。 */
 :root {
@@ -150,6 +150,13 @@ label.check.small span { font-size: 13px; }
 #cz-bar[hidden] { display: none; }
 #cz-bar-text { flex: 1; font-size: 14px; font-weight: bold; }
 #panel-customize { padding-bottom: 72px; }
+
+/* ---- v3.2：裏での読み込みの表示・読み直しのボタン ---- */
+#sync-ind { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: 8px; z-index: 40; padding: 4px 10px; border-radius: 999px;
+  background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: bold; box-shadow: var(--shadow); pointer-events: none; }
+#sync-ind[hidden] { display: none; }
+.fresh-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 6px; min-height: 36px; }
+.fresh-row .mini { font-size: 13px; }
 
 /* ===== 見た目（data-theme） ===== */
 

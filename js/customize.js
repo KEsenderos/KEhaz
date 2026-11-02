@@ -1,7 +1,7 @@
 /* KEhaz customize.js　目的：カスタマイズタブ（設定の一覧表から入力欄を作る、範囲チェック、見本の表示、
    保存・取り消し・初期値に戻す、LINEの送信数とテスト送信、改善メモ、控え）。
    入力欄は、GASから届く設定の一覧表（defs）から作るので、設定を足してもこのファイルは直さなくてよい。
-   基づく仕様書：KEhaz_仕様書_v3.1.2 */
+   基づく仕様書：KEhaz_仕様書_v3.2 */
 
 const CZ = { defs: [], defMap: {}, values: {}, warnings: [], patch: {}, errors: {}, parts: [], pushUsage: null,
   changes: [], backups: [], memos: [], focusKey: 'msg_askFirst', loaded: false };
@@ -65,18 +65,33 @@ function czValidate(def, raw) {
 /* ---------- 読み込みと保存 ---------- */
 
 // GASから設定の一覧表と今の値を読む
-async function loadCustomize() {
+async function loadCustomize(force) {
   $('set-gas-url').value = lsGet(LS_KEYS.GAS_URL);
   $('set-pass').value = lsGet(LS_KEYS.PASS);
   $('set-version').textContent = APP_VERSION;
   if (!lsGet(LS_KEYS.GAS_URL) || !lsGet(LS_KEYS.PASS)) { $('cz-conn').open = true; $('cz-body').innerHTML = ''; return; }
-  $('cz-body').textContent = TXT.LOADING;
-  try { czTake(await callApi('getCustomize', {})); }
-  catch (e) { $('cz-body').textContent = ''; $('cz-conn').open = true; showError(e, loadCustomize); }
+  const c = CACHE.cz;
+  if (c && !czDirtyCount()) czTake(c, true); else if (!c) $('cz-body').textContent = TXT.LOADING;
+  if (c && !force && isFresh(CACHE.czAt)) return;
+  syncStart();
+  try {
+    const d = await callApi('getCustomize', {});
+    // 書き換えの途中なら、画面は変えない（保存したときに新しい内容になる）
+    if (S.tab === 'customize' && !czDirtyCount()) czTake(d); else czRemember(d);
+  } catch (e) { if (!c) { $('cz-body').textContent = ''; $('cz-conn').open = true; } showError(e, () => loadCustomize(true)); }
+  finally { syncEnd(); }
 }
 
-// GASから届いた内容を当てはめて描き直す
-function czTake(d) {
+// カスタマイズの内容を写しに覚える。設定が変わると今日タブの見え方も変わるので、今日タブは次に読み直す
+function czRemember(d) {
+  CACHE.cz = d; CACHE.czAt = Date.now();
+  Object.keys(CACHE.stateAt).forEach((k) => { CACHE.stateAt[k] = 0; });
+  cacheSave();
+}
+
+// GASから届いた内容を当てはめて描き直す（fromCache：写しから出すときは、写しを覚え直さない）
+function czTake(d, fromCache) {
+  if (!fromCache) czRemember(d);
   CZ.defs = d.defs; CZ.defMap = {};
   d.defs.forEach((x) => { CZ.defMap[x.key] = x; });
   CZ.values = d.settings.values; CZ.warnings = d.settings.warnings;
@@ -85,6 +100,7 @@ function czTake(d) {
   $('set-version').textContent = `アプリ ${APP_VERSION} ／ GAS ${d.version}` + (d.version !== APP_VERSION ? '（版が違います。更新を確かめてください）' : '');
   applyColors(CZ.values);
   renderCustomize();
+  renderFresh('cz-fresh', CACHE.czAt);
 }
 
 // 変更を保存する（1つでも範囲外なら保存しない）
@@ -500,6 +516,7 @@ async function czRestore(ts) {
 function czSaveConn() {
   lsSet(LS_KEYS.GAS_URL, $('set-gas-url').value.trim());
   lsSet(LS_KEYS.PASS, $('set-pass').value.trim());
+  cacheClear();
   showStatus(TXT.CONN_SAVED);
   loadCustomize();
 }
