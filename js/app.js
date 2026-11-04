@@ -1,5 +1,5 @@
 /* KEhaz app.js　目的：画面の表示と操作（4つのタブの切り替え、今日・決まったやること・記録、更新ボタン、起動）。
-   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.2.1 */
+   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.3.1 */
 
 const S = {
   tab: 'today', today: '', date: '', day: null, items: [], templates: [], values: {}, warnings: [], parts: {},
@@ -266,6 +266,7 @@ function renderDay() {
 
   // 休む・LINE停止・設定の注意
   const notes = [];
+  if (st.tickHealth && !st.tickHealth.ok) notes.push(st.tickHealth.message);
   if (st.resting) notes.push(TXT.REST_NOTE.replace('{d}', st.restUntil));
   if (st.lineStopped) notes.push(TXT.LINE_STOPPED);
   (S.warnings || []).forEach((w) => notes.push(w.message));
@@ -302,6 +303,7 @@ function renderItemCard(it, idx) {
   const mark = it.templateId ? ITEM_MARK.TEMPLATE : ITEM_MARK.ONEOFF;
   let st = TXT.STATUS[it.status] || '';
   if (it.note === 'carried') st = '今日に移した';
+  if (it.note === 'noreply') st = '見送り（返事なし）';
   if (it.status === 'doing' && it.fiveStage) st += '（5分だけ）';
   else if (it.status === 'doing' && it.startedAt) {
     st += `（〜${isoHm(new Date(new Date(it.startedAt).getTime() + it.minutes * 60000).toISOString())}）`;
@@ -313,7 +315,7 @@ function renderItemCard(it, idx) {
     'data-op': op, 'data-id': it.id, disabled: !canAct, title: canAct ? '' : TXT.SAVE_FIRST });
   if (it.status === 'pending' || it.status === 'asked') { btns.push(act('start', TXT.BTN_START, 'b-start')); btns.push(act('skip', TXT.BTN_SKIP, 'b-skip')); }
   if (it.status === 'doing') { btns.push(act('done', TXT.BTN_DONE, 'b-start')); btns.push(act('skip', TXT.BTN_SKIP, 'b-skip')); }
-  if (it.status === 'skipped' && it.note !== 'carried') btns.push(act('restore', TXT.BTN_RESTORE));
+  if (it.status === 'skipped' && it.note !== 'carried') btns.push(act('restore', TXT.BTN_RESTORE));   // 見送りも「戻す」で未着手に戻せる
   btns.push(el('span', { class: 'grow' }));
   if (it.status !== 'done') {
     btns.push(el('button', { type: 'button', class: 'mini', text: '▲', 'aria-label': '上へ', 'data-move': '-1', 'data-idx': String(idx), disabled: idx === 0 }));

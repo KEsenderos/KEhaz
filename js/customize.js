@@ -1,7 +1,7 @@
 /* KEhaz customize.js　目的：カスタマイズタブ（設定の一覧表から入力欄を作る、範囲チェック、見本の表示、
    保存・取り消し・初期値に戻す、LINEの送信数とテスト送信、改善メモ、控え）。
    入力欄は、GASから届く設定の一覧表（defs）から作るので、設定を足してもこのファイルは直さなくてよい。
-   基づく仕様書：KEhaz_仕様書_v3.2.1 */
+   基づく仕様書：KEhaz_仕様書_v3.3.1 */
 
 const CZ = { defs: [], defMap: {}, values: {}, warnings: [], patch: {}, errors: {}, parts: [], pushUsage: null,
   changes: [], backups: [], memos: [], focusKey: 'msg_askFirst', loaded: false };
