@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.3.1 -->
+<!-- KEhaz（アプリの画面） 基づく仕様書：KEhaz_仕様書_v3.5.1 -->
 <html lang="ja" data-theme="athlete">
 <head>
   <meta charset="utf-8">
@@ -70,12 +70,27 @@
         <p class="muted small">決まったやることから足す：</p>
         <div id="template-chips" class="chips"></div>
       </div>
+
+      <div class="box" id="day-quiet-box">
+        <h3>この日だけ送らない時間帯</h3>
+        <p class="muted small">この時間はLINEを送りません（ボタンを押したときの返事は届きます）。足す・変える・消すとすぐ保存します</p>
+        <ul id="day-quiet-list" class="quiet-list"></ul>
+        <p id="day-quiet-err" class="cz-err" hidden></p>
+        <button id="day-quiet-add" type="button">＋ 時間帯を足す</button>
+      </div>
     </section>
 
     <!-- 決まったやること -->
     <section id="panel-template" class="tab-panel" hidden>
       <div class="fresh-row"><span class="muted small">曜日ごとの開始時刻は「カスタマイズ」の「時刻」で変えます</span><button type="button" class="mini" data-refresh>↻ 更新</button></div>
       <button id="tpl-save" type="button" class="primary wide">保存する</button>
+      <div class="box" id="quiet-box">
+        <h3>送らない時間帯（毎週）</h3>
+        <p class="muted small">この時間はLINEを送りません（ボタンを押したときの返事は届きます）。終わりが開始より前なら翌日まで。午前4時までは前の日として扱います。上の［保存する］で保存します</p>
+        <ul id="quiet-list" class="quiet-list"></ul>
+        <p id="quiet-err" class="cz-err" hidden></p>
+        <button id="quiet-add" type="button">＋ 時間帯を足す</button>
+      </div>
       <ul id="tpl-list" class="cards"></ul>
       <div class="box">
         <h3>＋ 決まったやること</h3>

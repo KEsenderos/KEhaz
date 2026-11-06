@@ -1,9 +1,9 @@
 /* KEhaz app.js　目的：画面の表示と操作（4つのタブの切り替え、今日・決まったやること・記録、更新ボタン、起動）。
-   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.3.1 */
+   カスタマイズタブは customize.js。基づく仕様書：KEhaz_仕様書_v3.5.1 */
 
 const S = {
   tab: 'today', today: '', date: '', day: null, items: [], templates: [], values: {}, warnings: [], parts: {},
-  tplItems: [], dirty: { day: false, tpl: false }, pendingNav: null
+  tplItems: [], dayQuiet: [], quietItems: [], dirty: { day: false, tpl: false }, pendingNav: null
 };
 const $ = (id) => document.getElementById(id);
 
@@ -206,6 +206,7 @@ function takeState(d) {
   S.today = d.today; S.day = d.day; S.items = d.items.map((it) => Object.assign({}, it));
   S.templates = d.templates; S.values = d.settings.values; S.warnings = d.settings.warnings; S.parts = d.parts;
   S.state = d; S.dirty.day = false;
+  S.dayQuiet = (d.dayQuiet || []).map((q) => Object.assign({}, q));
   applyColors(S.values);
   renderDay();
   renderFresh('day-fresh', CACHE.stateAt[d.date]);
@@ -256,8 +257,9 @@ function renderDay() {
   const st = S.state || {};
   const info = [];
   if (date === today && S.parts.progress) {
-    const done = S.items.filter((it) => it.status === 'done' && it.note !== 'carried').length;
-    const total = S.items.filter((it) => it.note !== 'carried').length;
+    const inPlan = (it) => it.note !== 'carried' && it.note !== 'moved';
+    const done = S.items.filter((it) => it.status === 'done' && inPlan(it)).length;
+    const total = S.items.filter(inPlan).length;
     if (total) info.push(`今日 ${done}/${total}`);
   }
   if (S.parts.streak && st.streak) info.push(`連続${st.streak}日`);
@@ -267,6 +269,7 @@ function renderDay() {
   // 休む・LINE停止・設定の注意
   const notes = [];
   if (st.tickHealth && !st.tickHealth.ok) notes.push(st.tickHealth.message);
+  if (date === today && st.date === date && st.quietNow && st.quietNow.active) notes.push(TXT.QUIET_NOW.replace('{t}', st.quietNow.until));
   if (st.resting) notes.push(TXT.REST_NOTE.replace('{d}', st.restUntil));
   if (st.lineStopped) notes.push(TXT.LINE_STOPPED);
   (S.warnings || []).forEach((w) => notes.push(w.message));
@@ -295,6 +298,72 @@ function renderDay() {
   const chips = $('template-chips');
   chips.innerHTML = '';
   S.templates.forEach((t) => chips.appendChild(el('button', { type: 'button', text: t.title, 'data-tid': t.id })));
+  renderQuietDay();
+}
+
+/* ---------- 送らない時間帯 ---------- */
+
+// 時間帯の行（withWd=true なら曜日の選択つき）。kind：'d'（この日だけ）／'w'（毎週）
+function quietRow(q, idx, withWd, kind) {
+  const kids = [];
+  if (withWd) {
+    kids.push(el('select', { class: 'q-wd', 'data-q': kind, 'data-idx': String(idx), 'aria-label': '曜日' },
+      WEEKDAYS_JA.map((w, i) => el('option', { value: String(i), text: w + '曜', selected: Number(q.wd) === i }))));
+  }
+  kids.push(el('input', { type: 'time', class: 'q-from', value: q.from || '', 'data-q': kind, 'data-idx': String(idx), 'aria-label': '開始' }));
+  kids.push(el('span', { text: '〜' }));
+  kids.push(el('input', { type: 'time', class: 'q-to', value: q.to || '', 'data-q': kind, 'data-idx': String(idx), 'aria-label': '終わり' }));
+  kids.push(el('button', { type: 'button', class: 'mini b-del', text: '✕', 'aria-label': '消す', 'data-qdel': kind, 'data-idx': String(idx) }));
+  return el('li', { class: 'quiet-row' + (withWd ? '' : ' no-wd') }, kids);
+}
+// 時間帯の一覧を確かめる。誤りの文（無ければ ''）
+function quietError(list, max) {
+  if (list.length > max) return TXT.QUIET_MAX.replace('{n}', max);
+  for (let i = 0; i < list.length; i++) {
+    const q = list[i];
+    if (!/^\d{2}:\d{2}$/.test(q.from || '') || !/^\d{2}:\d{2}$/.test(q.to || '')) return `${i + 1}個目：${TXT.QUIET_FORMAT}`;
+    if (q.from === q.to) return `${i + 1}個目：${TXT.QUIET_SAME}`;
+  }
+  return '';
+}
+// 入力欄の今の値を読み取る（iPhoneで change が起きないまま保存を押した場合のため）
+function syncQuietInputs(kind) {
+  const list = kind === 'w' ? S.quietItems : S.dayQuiet;
+  document.querySelectorAll(`#${kind === 'w' ? 'quiet-list' : 'day-quiet-list'} .quiet-row`).forEach((row, i) => {
+    const q = list[i];
+    if (!q) return;
+    q.from = row.querySelector('.q-from').value || '';
+    q.to = row.querySelector('.q-to').value || '';
+    const wd = row.querySelector('.q-wd');
+    if (wd) q.wd = Number(wd.value);
+  });
+}
+// 「この日だけ送らない時間帯」を描く
+function renderQuietDay() {
+  const ul = $('day-quiet-list');
+  ul.innerHTML = '';
+  S.dayQuiet.forEach((q, i) => ul.appendChild(quietRow(q, i, false, 'd')));
+  const err = quietError(S.dayQuiet, DAY_QUIET_MAX);
+  $('day-quiet-err').textContent = err; $('day-quiet-err').hidden = !err;
+  $('day-quiet-add').disabled = S.dayQuiet.length >= DAY_QUIET_MAX;
+}
+// この日だけの時間帯を変えたら、正しければすぐ保存する
+function changeDayQuiet() {
+  syncQuietInputs('d');
+  const err = quietError(S.dayQuiet, DAY_QUIET_MAX);
+  $('day-quiet-err').textContent = err; $('day-quiet-err').hidden = !err;
+  if (err) return;
+  S.dirty.day = true;
+  queueSaveDay();
+}
+// 「送らない時間帯（毎週）」を描く
+function renderQuietWeekly() {
+  const ul = $('quiet-list');
+  ul.innerHTML = '';
+  S.quietItems.forEach((q, i) => ul.appendChild(quietRow(q, i, true, 'w')));
+  const err = quietError(S.quietItems, QUIET_MAX);
+  $('quiet-err').textContent = err; $('quiet-err').hidden = !err;
+  $('quiet-add').disabled = S.quietItems.length >= QUIET_MAX;
 }
 
 // やること1件のカード
@@ -304,16 +373,22 @@ function renderItemCard(it, idx) {
   let st = TXT.STATUS[it.status] || '';
   if (it.note === 'carried') st = '今日に移した';
   if (it.note === 'noreply') st = '見送り（返事なし）';
+  if (it.note === 'moved') st = TXT.MOVED;
   if (it.status === 'doing' && it.fiveStage) st += '（5分だけ）';
   else if (it.status === 'doing' && it.startedAt) {
     st += `（〜${isoHm(new Date(new Date(it.startedAt).getTime() + it.minutes * 60000).toISOString())}）`;
   }
-  const meta = [`${it.minutes}分`, it.fixedTime ? `⏰${it.fixedTime}` : '', it.bedOk === '1' ? '🌙' : '', st].filter(Boolean).join('　');
+  const moved = Number(it.moveCount) > 0 ? TXT.MOVED_COUNT.replace('{n}', it.moveCount) : '';
+  const meta = [`${it.minutes}分`, it.fixedTime ? `⏰${it.fixedTime}` : '', it.bedOk === '1' ? '🌙' : '', moved, st].filter(Boolean).join('　');
   const canAct = !!it.id && !S.dirty.day;
   const btns = [];
   const act = (op, label, cls) => el('button', { type: 'button', class: 'mini ' + (cls || ''), text: label,
     'data-op': op, 'data-id': it.id, disabled: !canAct, title: canAct ? '' : TXT.SAVE_FIRST });
-  if (it.status === 'pending' || it.status === 'asked') { btns.push(act('start', TXT.BTN_START, 'b-start')); btns.push(act('skip', TXT.BTN_SKIP, 'b-skip')); }
+  if (it.status === 'pending' || it.status === 'asked') {
+    btns.push(act('start', TXT.BTN_START, 'b-start'));
+    if (!it.templateId && S.parts.tomorrow) btns.push(act('tomorrow', TXT.BTN_TOMORROW, 'b-tmr'));   // その日だけのやることだけ
+    btns.push(act('skip', TXT.BTN_SKIP, 'b-skip'));
+  }
   if (it.status === 'doing') { btns.push(act('done', TXT.BTN_DONE, 'b-start')); btns.push(act('skip', TXT.BTN_SKIP, 'b-skip')); }
   if (it.status === 'skipped' && it.note !== 'carried') btns.push(act('restore', TXT.BTN_RESTORE));   // 見送りも「戻す」で未着手に戻せる
   btns.push(el('span', { class: 'grow' }));
@@ -322,7 +397,7 @@ function renderItemCard(it, idx) {
     btns.push(el('button', { type: 'button', class: 'mini', text: '▼', 'aria-label': '下へ', 'data-move': '1', 'data-idx': String(idx), disabled: idx === S.items.length - 1 }));
     btns.push(el('button', { type: 'button', class: 'mini b-del', text: '✕', 'aria-label': '削除', 'data-remove': String(idx) }));
   }
-  return el('li', { class: 'item-card' + (finished ? ' finished' : ''), 'data-id': it.id || '' }, [
+  return el('li', { class: 'item-card' + (finished ? ' finished' : '') + (it.note === 'moved' ? ' ic-moved' : ''), 'data-id': it.id || '' }, [
     el('div', { class: 'ic-top' }, [el('span', { text: `${idx + 1}` }), el('span', { text: mark }), el('span', { class: 'ic-title', text: it.title })]),
     el('div', { class: 'ic-meta', text: meta }),
     el('div', { class: 'ic-btns' }, btns)
@@ -377,10 +452,14 @@ async function saveDay() {
   try {
     const d = await callApi('saveDay', {
       date: S.date, startTime: $('day-start-time').value || '', status: $('day-off').checked ? 'off' : 'on',
-      items: S.items.map((it) => ({ id: it.id || '', title: it.title, minutes: it.minutes, fixedTime: it.fixedTime || '', bedOk: it.bedOk || '0' }))
+      items: S.items.map((it) => ({ id: it.id || '', title: it.title, minutes: it.minutes, fixedTime: it.fixedTime || '', bedOk: it.bedOk || '0' })),
+      quiet: quietError(S.dayQuiet, DAY_QUIET_MAX) ? undefined : S.dayQuiet.map((q) => ({ from: q.from, to: q.to }))   // 誤りがある間は送らない（GASは前のまま）
     });
     S.day = d.day; S.items = d.items; S.dirty.day = false;
-    cachePatchDay(S.date, { day: d.day, items: d.items });
+    let dq = [];
+    try { dq = d.day && d.day.quiet ? JSON.parse(d.day.quiet) : []; } catch (e) { dq = []; }
+    S.dayQuiet = dq;
+    cachePatchDay(S.date, { day: d.day, items: d.items, dayQuiet: dq });
     renderDay();
     showStatus(TXT.SAVED);
     return true;
@@ -399,13 +478,19 @@ async function doItemAction(id, op) {
     if (op === 'start') { it.status = 'doing'; it.startedAt = now; it.fiveStage = ''; }
     else if (op === 'done') it.status = 'done';
     else if (op === 'skip') it.status = 'skipped';
-    else if (op === 'restore') it.status = 'pending';
+    else if (op === 'restore') { it.status = 'pending'; it.note = ''; }
+    else if (op === 'tomorrow') { it.status = 'skipped'; it.note = 'moved'; }
     renderDay();
   }
   syncStart();
   try {
     const d = await callApi('itemAction', { itemId: id, op });
     if (d.result === 'already' || d.result === 'invalid') showStatus(d.result === 'already' ? 'すでに終わっています（LINEで押した可能性があります）' : '今はその操作ができません', true);
+    if (d.result === 'started') showStatus(TXT.MOVE_STARTED, true);
+    if (op === 'tomorrow' || op === 'restore') {   // 翌日の内容が変わるので、翌日の写しは捨てる
+      const nx = addDaysStr(S.date, 1);
+      delete CACHE.state[nx]; delete CACHE.stateAt[nx];
+    }
     S.items = d.items;
     cachePatchDay(S.date, { items: d.items });
     if (!S.dirty.day) renderDay();
@@ -422,6 +507,9 @@ function takeTemplates(d) {
   S.today = d.today; S.templates = d.templates; S.values = d.settings.values;
   applyColors(S.values);
   S.tplItems = d.templates.map((t) => Object.assign({}, t));
+  let qw = [];
+  try { qw = JSON.parse(S.values.quietWeekly || '[]'); } catch (e) { qw = []; }
+  S.quietItems = qw.map((q) => Object.assign({}, q));
   S.dirty.tpl = false;
   renderTemplates();
 }
@@ -444,6 +532,7 @@ function renderTemplates() {
   const list = $('tpl-list');
   list.innerHTML = '';
   S.tplItems.forEach((t, i) => list.appendChild(renderTemplateCard(t, i)));
+  renderQuietWeekly();
 }
 
 // 決まったやること1件のカード
@@ -510,19 +599,29 @@ function addTemplate() {
 // 決まったやることを保存する
 async function saveTemplates() {
   syncTemplateInputs();
+  syncQuietInputs('w');
+  const qerr = quietError(S.quietItems, QUIET_MAX);
+  if (qerr) { renderQuietWeekly(); showStatus('送らない時間帯：' + qerr, true); return false; }
   const btn = $('tpl-save');
   btn.disabled = true;
   try {
     const d = await callApi('saveTemplates', {
-      items: S.tplItems.map((t) => ({ id: t.id || '', title: t.title, minutes: t.minutes, fixedTime: t.fixedTime || '', days: t.days, bedOk: t.bedOk }))
+      items: S.tplItems.map((t) => ({ id: t.id || '', title: t.title, minutes: t.minutes, fixedTime: t.fixedTime || '', days: t.days, bedOk: t.bedOk })),
+      quiet: S.quietItems.map((q) => ({ wd: Number(q.wd), from: q.from, to: q.to }))
     });
     S.templates = d.templates;
     S.tplItems = d.templates.map((t) => Object.assign({}, t));
+    S.quietItems = (d.quietWeekly || []).map((q) => Object.assign({}, q));
+    S.values = Object.assign({}, S.values, { quietWeekly: JSON.stringify(d.quietWeekly || []) });
     S.dirty.tpl = false;
     // 明日以降の日が作り直されるので、今日以外の写しは捨てる
     const today = S.today || localToday();
     Object.keys(CACHE.state).forEach((k) => { if (k !== today) { delete CACHE.state[k]; delete CACHE.stateAt[k]; } });
-    if (CACHE.state[today]) CACHE.state[today].templates = d.templates;
+    if (CACHE.state[today]) {
+      CACHE.state[today].templates = d.templates;
+      CACHE.state[today].settings.values.quietWeekly = S.values.quietWeekly;
+      CACHE.stateAt[today] = 0;     // 「今は送らない時間帯です」を出し直すため、次に開いたとき読み直す
+    }
     cacheSave();
     renderTemplates();
     showStatus(TXT.SAVED_TPL);
@@ -575,7 +674,8 @@ function renderStats(d) {
     const st = it.status === 'done' || it.status === 'skipped' ? it.status : 'pending';
     const sel = el('select', { 'data-fix': it.id, 'aria-label': it.title + 'の状態' },
       ['done', 'skipped', 'pending'].map((v) => el('option', { value: v, text: TXT.FIX_STATUS[v], selected: v === st })));
-    rec.appendChild(el('li', {}, [el('span', { class: 'fix-date', text: dateLabel(it.date) }), el('span', { class: 'fix-title', text: it.title }), sel]));
+    const title = it.title + (it.note === 'moved' ? '（翌日へ）' : '');
+    rec.appendChild(el('li', {}, [el('span', { class: 'fix-date', text: dateLabel(it.date) }), el('span', { class: 'fix-title', text: title }), sel]));
   });
   $('rec-error').textContent = d.lastError ? `${d.lastError.at}　${d.lastError.message}` : TXT.NO_ERROR;
 }
@@ -700,6 +800,31 @@ function init() {
     S.dirty.tpl = true;
   });
   $('tpl-add-btn').addEventListener('click', addTemplate);
+  // 送らない時間帯（毎週）：決まったやることと一緒に保存する
+  $('quiet-add').addEventListener('click', () => {
+    syncQuietInputs('w');
+    S.quietItems.push(Object.assign({ wd: weekdayOfStr(S.today || localToday()) }, QUIET_NEW));
+    S.dirty.tpl = true; renderQuietWeekly();
+  });
+  $('quiet-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-qdel]');
+    if (!b) return;
+    syncQuietInputs('w');
+    S.quietItems.splice(Number(b.dataset.idx), 1); S.dirty.tpl = true; renderQuietWeekly();
+  });
+  $('quiet-list').addEventListener('change', () => { syncQuietInputs('w'); S.dirty.tpl = true; renderQuietWeekly(); });
+  // この日だけ送らない時間帯：変えたらすぐ保存する
+  $('day-quiet-add').addEventListener('click', () => {
+    syncQuietInputs('d');
+    S.dayQuiet.push(Object.assign({}, QUIET_NEW)); renderQuietDay(); changeDayQuiet();
+  });
+  $('day-quiet-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-qdel]');
+    if (!b) return;
+    syncQuietInputs('d');
+    S.dayQuiet.splice(Number(b.dataset.idx), 1); renderQuietDay(); changeDayQuiet();
+  });
+  $('day-quiet-list').addEventListener('change', changeDayQuiet);
   $('tpl-save').addEventListener('click', saveTemplates);
 
   $('rec-recent').addEventListener('change', (e) => { if (e.target.dataset.fix) fixItem(e.target.dataset.fix, e.target.value); });

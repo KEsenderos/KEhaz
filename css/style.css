@@ -1,4 +1,4 @@
-/* KEhaz 画面の見た目　基づく仕様書：KEhaz_仕様書_v3.3.1
+/* KEhaz 画面の見た目　基づく仕様書：KEhaz_仕様書_v3.5.1
    色・影などは変数（--◯◯）にまとめ、見た目（data-theme）ごとに変数を差し替える。
    カスタマイズの「主な色・始めるの色・やめるの色」を決めたときは、app.js が --accent・--start・--skip を上書きする。 */
 :root {
@@ -157,6 +157,15 @@ label.check.small span { font-size: 13px; }
 #sync-ind[hidden] { display: none; }
 .fresh-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 6px; min-height: 36px; }
 .fresh-row .mini { font-size: 13px; }
+
+/* ---- v3.4：送らない時間帯　v3.5：翌日へ ---- */
+.quiet-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.quiet-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto minmax(0, 1fr) 36px; gap: 4px; align-items: center; margin: 6px 0; }
+.quiet-row.no-wd { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 36px; }
+.quiet-row input, .quiet-row select { width: 100%; padding: 2px 4px; }
+.quiet-row .mini { min-width: 36px; padding: 2px; }
+.b-tmr { color: var(--accent); border-color: var(--accent); }
+.item-card.ic-moved .ic-title { text-decoration: line-through; }
 
 /* ===== 見た目（data-theme） ===== */
 
